@@ -56,7 +56,7 @@ function (@main)(ARGS)
 
 	exit_application_bool = true
 	first_frame = true
-	ig.render(ctx; window_size=(1,1), window_title="Keithley Pico", on_exit=() -> ImPlot.DestroyContext(p_ctx)) do
+	ig.render(ctx; window_size=(1,1), window_title="Real Time ESP32 pin voltage", on_exit=() -> ImPlot.DestroyContext(p_ctx)) do
 		!exit_application_bool && exit()
 
 		DPI = ig.GetWindowDpiScale()
