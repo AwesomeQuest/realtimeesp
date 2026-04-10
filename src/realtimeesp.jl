@@ -1,6 +1,7 @@
 module realtimeesp
 
 import CImGui as ig, ModernGL, GLFW
+import CImGui.CSyntax: @c
 import ImPlot
 using SimpleBLE
 using JSON, DelimitedFiles
@@ -33,7 +34,7 @@ function (@main)(ARGS)
 	espdata = Tuple{Float64, Float64}[]
 	datalock = ReentrantLock()
 	f = open("logs_$currtime.csv", "w")
-	writedlm(f, ["Time [ms]" "Currrent"], ',')
+	writedlm(f, ["Time [ms]" "Voltage [V]"], ',')
 	counter = 0
 	notify(peri, SERVICE_UUID, CHARACTERISTIC_UUID_TX) do data
 		counter += 1
@@ -42,24 +43,56 @@ function (@main)(ARGS)
 		@lock datalock push!(espdata, (jdata["timestamp"], jdata["current"]))
 	end
 
-	
+
 	ig.set_backend(:GlfwOpenGL3)
 
 	ctx = ig.CreateContext()
+	io = ig.GetIO()
+	io.ConfigFlags = unsafe_load(io.ConfigFlags) | ig.lib.ImGuiConfigFlags_DockingEnable
+	io.ConfigFlags = unsafe_load(io.ConfigFlags) | ig.lib.ImGuiConfigFlags_ViewportsEnable
+	style = ig.GetStyle()
 	p_ctx =ImPlot.CreateContext()
 
-	ig.render(ctx; on_exit=() -> ImPlot.DestroyContext(p_ctx)) do
-		ig.Begin("Plot Window")
-		ImPlot.SetNextAxesLimits(0.0,1000,0.0,1.0, ig.ImGuiCond_Once)
-		if ImPlot.BeginPlot("Foo", "x1", "y1", ig.ImVec2(-1, 300))
+
+	exit_application_bool = true
+	first_frame = true
+	ig.render(ctx; window_size=(1,1), window_title="Keithley Pico", on_exit=() -> ImPlot.DestroyContext(p_ctx)) do
+		!exit_application_bool && exit()
+
+		DPI = ig.GetWindowDpiScale()
+		ig.PushFont(C_NULL, 15.0f0DPI*unsafe_load(style.FontScaleDpi))
+		if first_frame
+			win = ig._current_window(Val{:GlfwOpenGL3}())
+			GLFW.HideWindow(win)
+		end
+		first_frame = false
+
+		@c ig.Begin("Plot Window", &exit_application_bool,
+			ig.ImGuiWindowFlags_MenuBar |
+			ig.ImGuiWindowFlags_NoCollapse)
+
+		if (ig.BeginMenuBar())
+			if (ig.BeginMenu("Tools"))
+				@c ig.MenuItem("Show Plot Style Editor", "", &show_plot_style_editor)
+				@c ig.MenuItem("Show ImGui Style Editor", "", &show_imgui_style_editor)
+				ig.DragFloat("Window size##tools", style.FontScaleDpi, 0.001f0, 0.001f0, 4.0f0)
+				ig.EndMenu();
+			end
+			ig.EndMenuBar();
+		end
+
+
+		if ImPlot.BeginPlot("Voltage", "Time", "Voltage", ig.ImVec2(-1, -1))
+			xflags = ImPlot.ImPlotAxisFlags_None | ImPlot.ImPlotAxisFlags_AutoFit
+			yflags = ImPlot.ImPlotAxisFlags_None | ImPlot.ImPlotAxisFlags_AutoFit
+			ImPlot.SetupAxes("Time", "Voltage", xflags, yflags)
 			@lock datalock begin
-				iv_xflags = ImPlot.ImPlotAxisFlags_None | ImPlot.ImPlotAxisFlags_AutoFit
-				iv_yflags = ImPlot.ImPlotAxisFlags_None | ImPlot.ImPlotAxisFlags_AutoFit
-				ImPlot.SetupAxes("Time", "Voltage", iv_xflags, iv_yflags)
 				ImPlot.PlotLine("data", first.(espdata), last.(espdata))
 			end
 			ImPlot.EndPlot()
 		end
+		
+		ig.PopFont()
 		ig.End()
 	end
 
