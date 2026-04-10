@@ -1,6 +1,6 @@
 name = "realtimeesp"
 uuid = "8c6d08be-40a6-4e56-9453-cbb2168555a5"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Awesome Quest <torfit@gmail.com>"]
 
 [deps]
